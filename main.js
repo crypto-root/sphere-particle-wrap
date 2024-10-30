@@ -90,7 +90,9 @@ gltfLoader.load(url, (gltf) => {
      // mixer = new THREE.AnimationMixer(gltf.scene);
      // const clips = gltf.animations;
      // mixer.clipAction(clips[0]).play();
-     // root.rotateY(Math.PI/2);
+     root.rotateY(-(Math.PI/2));
+     // root.rotateX(Math.PI/2);
+     root.rotation.z = 10;
      recursive(gltf.scene.children);
 });
 let pivots = new THREE.Group();
@@ -132,7 +134,7 @@ scene.add(pivots);
 // scene.add(cube);
 
 
-camera.position.z = 1;
+camera.position.z = 100;
 
 // let pivots = new THREE.Group();
 
@@ -169,9 +171,9 @@ function animate() {
 
      // if (mixer) mixer.update(0.2);
 
-     // composer.render();
+     composer.render();
      // requestAnimationFrame(animate);
-     renderer.render( scene, camera ); 
+     // renderer.render( scene, camera ); 
 
      controls.update();
 
@@ -187,7 +189,7 @@ class Dot{
           // dotMaterial.emissiveIntensity = 5;
           let dotMaterial = new THREE.MeshBasicMaterial({color: 0xffffff});
 
-          this.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2), dotMaterial);
+          this.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.07), dotMaterial);
           this.pivot = pivot;
           this.isAvoiding = false;
           this.lerpFactor = 0.0;
@@ -205,7 +207,7 @@ class Dot{
           this.mesh.getWorldPosition(dotGlobalPos);
           this.pivot.getWorldPosition(pivotGlobalPos);
           let distance = pivotGlobalPos.distanceTo(mousePos);
-          console.log(distance);
+          // console.log(distance);
           
           if(distance < 20.0){
 
@@ -213,8 +215,8 @@ class Dot{
                dir.normalize();
 
 
-               this.targetPos.x = dir.x * 20;
-               this.targetPos.y = dir.y * 20;
+               this.targetPos.x = dir.x * 10;
+               this.targetPos.y = dir.y * 10;
                if(!this.isAvoiding){
                     this.lerpFactor = 0.0;
                     this.isAvoiding = true;
