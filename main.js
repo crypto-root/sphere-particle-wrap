@@ -3,6 +3,7 @@ import { FBXLoader, GLTFLoader, OrbitControls, UnrealBloomPass } from 'three/exa
 import { clamp, normalize, randFloat, randInt } from 'three/src/math/MathUtils.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'; 
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'; 
+import { iridescence } from 'three/webgpu';
 
 
 // function randomInt(min, max){
@@ -12,6 +13,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 
 const scene = new THREE.Scene(); 
 const renderer = new THREE.WebGLRenderer(); 
+
+var mousePos = new THREE.Vector2();
 
 // renderer.setClearColor(0x010328);
 
@@ -44,7 +47,24 @@ const glowPass = new UnrealBloomPass();
 composer.addPass( glowPass ); 
 
 
+document.addEventListener("mousemove", onDocumentMouseMove, false);
+function onDocumentMouseMove(event){
+     
+     event.preventDefault();
 
+     mousePos.x = (event.clientX / window.innerWidth) * 2 - 1;
+     mousePos.y = - (event.clientY / window.innerHeight) * 2 + 1;
+
+// Make the sphere follow the mouse
+     var vector = new THREE.Vector3(mousePos.x, mousePos.y, 0.5);
+     vector.unproject( camera );
+     var dir = vector.sub( camera.position ).normalize();
+     var distance = - camera.position.z / dir.z;
+     mousePos = camera.position.clone().add( dir.multiplyScalar( distance ) );
+     // console.log("x" + mousePos.x);
+     // console.log("y" + mousePos.y);
+
+}
 
 window.addEventListener("resize", onWindowResize,false);
 
@@ -70,11 +90,11 @@ gltfLoader.load(url, (gltf) => {
      // mixer = new THREE.AnimationMixer(gltf.scene);
      // const clips = gltf.animations;
      // mixer.clipAction(clips[0]).play();
+     // root.rotateY(Math.PI/2);
      recursive(gltf.scene.children);
-     // scene.add(root);
 });
-
 let pivots = new THREE.Group();
+let dots = [];
 function recursive(children){
      for(let i = 0; i < children.length; i++){
           let child = children[i];
@@ -82,19 +102,24 @@ function recursive(children){
                recursive(child.children);
           }
           if(child.geometry && child.geometry.attributes.position){
+
                const positionAttribute = child.geometry.attributes.position;
                root.scale.set(0.0001,0.0001,0.0001);
                root.updateMatrixWorld(true);
+
                for(let i = 0; i < positionAttribute.count; i++){
+
                     const vertex = new THREE.Vector3();
                     vertex.fromBufferAttribute(positionAttribute, i);
                     const globalPos = vertex.clone().applyMatrix4(root.matrixWorld);
-                    console.log(globalPos);
-                    let sphere = new THREE.Mesh(new THREE.SphereGeometry(0.05), new THREE.MeshBasicMaterial({color: 0xffffff}));
-                    sphere.position.copy(globalPos);
-                    
+
                     let pivot = new THREE.Group();
-                    pivot.add(sphere);
+                    pivot.position.copy(globalPos);
+                    let dot = new Dot(pivot);
+                    dots.push(dot);
+
+                    pivot.add(dot.mesh);
+                    dot.mesh.position.copy(new THREE.Vector3());
                     pivots.add(pivot); 
                }
           }
@@ -130,29 +155,23 @@ camera.position.z = 1;
 
 
 
+// let cube = new THREE.Mesh(new THREE.BoxGeometry(3,3,3));
+// scene.add(cube);
 
 function animate() {
-     // pivots.rotation.x += 0.007;
-     // pivots.rotation.z -= 0.007;
-     // pivots.rotation.y -= 0.007;
+     
+     // cube.position.copy(mousePos);     
+     for(let i = 0; i < dots.length; i++){
+          dots[i].avoidMouse(mousePos);
+          dots[i].controlMovement();
 
-     // for(let i = 0; i < pivots.children.length; i++){
-     //      if(i % 2 == 0){
-     //                pivots.children[i].rotation.x += 0.007;
-     //                pivots.children[i].rotation.y += 0.007;
-     //           }
-     //      else{
-     //                pivots.children[i].rotation.x -= 0.007;
-     //                pivots.children[i].rotation.y -= 0.007;
-     //                pivots.children[i].rotation.z -= 0.007;
-               
-     //      }
-     // } 
+     }
 
      // if (mixer) mixer.update(0.2);
 
-     composer.render();
-     // renderer.render( scene, camera ); 
+     // composer.render();
+     // requestAnimationFrame(animate);
+     renderer.render( scene, camera ); 
 
      controls.update();
 
@@ -161,73 +180,68 @@ function animate() {
 renderer.setAnimationLoop( animate );
 
 class Dot{
-    
-     constructor(geometry, initPos){
+     constructor(pivot){
           // let dotMaterial =  new THREE.MeshPhongMaterial();
           // dotMaterial.color = new THREE.Color(dotColors[randInt(0,1)]);
           // dotMaterial.emissive = dotMaterial.color;
           // dotMaterial.emissiveIntensity = 5;
-
           let dotMaterial = new THREE.MeshBasicMaterial({color: 0xffffff});
 
-          this.mesh = new THREE.Mesh(geometry, dotMaterial);
-          this.initPos = initPos;
-          
-          this.velocityX = 0.0;
-          this.velocityY = 0.0;
-     }
-     setVelocity(){
-          let dir = new THREE.Vector2(mousePos.x-this.mesh.position.x, mousePos.y-this.mesh.position.y);
-          dir.normalize();
-          // console.log("dir x:" + dir.x);
-          // console.log("dir y:" + dir.y);
-          this.velocityX = dir.x;
-          this.velocityY = dir.y;
+          this.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2), dotMaterial);
+          this.pivot = pivot;
+          this.isAvoiding = false;
+          this.lerpFactor = 0.0;
+          this.velocityX = 0;
+          this.velocityY = 0;
+          this.lerpSpeed = 0.1;
+          this.isAvoiding = false;
+          this.targetPos = new THREE.Vector3(); 
      }
 
-     move(){
-          this.mesh.position.x += this.velocityX;
-          this.mesh.position.y += this.velocityY; 
-     }
-     friction(){
-          if(this.velocityX > 0.0){
-               if(this.velocityX - settings.frictionRate < 0.0){
-                    this.velocityX = 0.0;
-               }
-               else {
-                    this.velocityX -= settings.frictionRate;
-               }
-          }
-          if(this.velocityX < 0.0){
-               if(this.velocityX + settings.frictionRate > 0.0){
-                    this.velocityX = 0.0;
-               }
-               else{
-                    this.velocityX += settings.frictionRate;
-               }
-          }
-
+     avoidMouse(mousePos){
           
-          if(this.velocityY > 0.0){
-               if(this.velocityY - 0.1 < 0.0){
-                    this.velocityY = 0.0;
+          let dotGlobalPos = new THREE.Vector3();
+          let pivotGlobalPos = new THREE.Vector3();
+          this.mesh.getWorldPosition(dotGlobalPos);
+          this.pivot.getWorldPosition(pivotGlobalPos);
+          let distance = pivotGlobalPos.distanceTo(mousePos);
+          console.log(distance);
+          
+          if(distance < 20.0){
+
+               let dir = new THREE.Vector2(dotGlobalPos.x-mousePos.x, dotGlobalPos.y-mousePos.y);
+               dir.normalize();
+
+
+               this.targetPos.x = dir.x * 20;
+               this.targetPos.y = dir.y * 20;
+               if(!this.isAvoiding){
+                    this.lerpFactor = 0.0;
+                    this.isAvoiding = true;
                }
-               else {
-                    this.velocityY -= 0.1;
+          }
+          if(distance > 25.0){
+               if(this.isAvoiding){
+                    this.isAvoiding = false;
+                    this.lerpFactor = 0.0;
                }
+               this.targetPos.copy(new THREE.Vector3());
                
           }
-          if(this.velocityY < 0.0){
-               if(this.velocityY + 0.1 > 0.0){
-                    this.velocityY = 0.0;
-               }
-               else {
-                    this.velocityY += 0.1;
-               }
-          }
+     }
 
+     
+     controlMovement(){
+          // this.mesh.position.x += this.velocityX;
+          // this.mesh.position.y += this.velocityY;
+          this.mesh.position.lerp(this.targetPos, this.lerpFactor);
+
+          if(this.lerpFactor < 1.0){
+               this.lerpFactor += this.lerpSpeed;
+          }
           
      }
+     
      
 
 }
