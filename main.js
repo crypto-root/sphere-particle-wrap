@@ -1,25 +1,32 @@
 import * as THREE from 'three';
-import { FBXLoader, GLTFLoader, OrbitControls, UnrealBloomPass } from 'three/examples/jsm/Addons.js';
-import { clamp, normalize, randFloat, randInt } from 'three/src/math/MathUtils.js';
+import { OrbitControls, UnrealBloomPass } from 'three/examples/jsm/Addons.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'; 
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'; 
+import GUI from 'lil-gui';
+
+let gui = new GUI();
+let settings = {
+     distanceAffection : 16.0,
+     avoidanceDistance: 30.0,
+}
+
+gui.add(settings, 'distanceAffection', 4.0,16.0,1.0);
+gui.add(settings, 'avoidanceDistance', -30.0,30.0,1.0);
 
 class Dot{
-     constructor(pivot){
-          // let dotMaterial =  new THREE.MeshPhongMaterial();
-          // dotMaterial.color = new THREE.Color(dotColors[randInt(0,1)]);
-          // dotMaterial.emissive = dotMaterial.color;
-          // dotMaterial.emissiveIntensity = 5;
+     constructor(radius,pivot){
+
           let dotMaterial = new THREE.MeshBasicMaterial({color: 0xffffff});
 
-          this.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.07), dotMaterial);
+          this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.1,0.1), dotMaterial);
           this.pivot = pivot;
           this.isAvoiding = false;
           this.lerpFactor = 0.0;
           this.velocityX = 0;
           this.velocityY = 0;
-          this.lerpSpeed = 0.1;
+          this.lerpSpeed = 0.05;
           this.isAvoiding = false;
+          this.radius = radius;
           this.targetPos = new THREE.Vector3(); 
      }
 
@@ -29,23 +36,23 @@ class Dot{
           let pivotGlobalPos = new THREE.Vector3();
           this.mesh.getWorldPosition(dotGlobalPos);
           this.pivot.getWorldPosition(pivotGlobalPos);
+          pivotGlobalPos.setZ(0);
           let distance = pivotGlobalPos.distanceTo(mousePos);
-          // console.log(distance);
           
-          if(distance < 20.0){
+          if(distance < settings.distanceAffection){
 
-               let dir = new THREE.Vector2(dotGlobalPos.x-mousePos.x, dotGlobalPos.y-mousePos.y);
+               let dir = new THREE.Vector3(pivotGlobalPos.x-mousePos.x, pivotGlobalPos.y-mousePos.y);
                dir.normalize();
 
+               this.targetPos.x = dir.x * (settings.avoidanceDistance - this.radius);
+               this.targetPos.y = dir.y * (settings.avoidanceDistance - this.radius);
 
-               this.targetPos.x = dir.x * 10;
-               this.targetPos.y = dir.y * 10;
                if(!this.isAvoiding){
                     this.lerpFactor = 0.0;
                     this.isAvoiding = true;
                }
           }
-          if(distance > 25.0){
+          else{
                if(this.isAvoiding){
                     this.isAvoiding = false;
                     this.lerpFactor = 0.0;
@@ -53,12 +60,11 @@ class Dot{
                this.targetPos.copy(new THREE.Vector3());
                
           }
+          
      }
 
      
      controlMovement(){
-          // this.mesh.position.x += this.velocityX;
-          // this.mesh.position.y += this.velocityY;
           this.mesh.position.lerp(this.targetPos, this.lerpFactor);
 
           if(this.lerpFactor < 1.0){
@@ -71,9 +77,6 @@ class Dot{
 
 }
 
-// function randomInt(min, max){
-//      return Math.floor(Math.random() * (max-min+1)+min);
-// }
 
 
 const scene = new THREE.Scene(); 
@@ -81,27 +84,18 @@ const renderer = new THREE.WebGLRenderer();
 
 var mousePos = new THREE.Vector2();
 
-// renderer.setClearColor(0x010328);
 
 
-// scene.add(new THREE.AmbientLight(0xffffff));
-scene.add(new THREE.DirectionalLight(0xffffff));
 
-// renderer.setClearColor(0xffffff);
 renderer.setSize( window.innerWidth, window.innerHeight ); 
 
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 ); 
 
 const controls = new OrbitControls(camera, renderer.domElement );
+controls.enableRotate = false;
 
 
-// by default no ascii effect
 document.body.appendChild( renderer.domElement );
-
-// let directionalLight = new THREE.DirectionalLight(0xffffff, 100);
-// scene.add(directionalLight);
-
-
 
 
 const composer = new EffectComposer(renderer);
@@ -143,10 +137,11 @@ function onWindowResize() {
 
 }
 
+
 let outerSphereDots = [];
 let outerSpherePivots = new THREE.Group();
 
-var outerSphere = new THREE.Mesh(new THREE.SphereGeometry(10,64,64), new THREE.MeshBasicMaterial());
+var outerSphere = new THREE.Mesh(new THREE.SphereGeometry(8,64,64), new THREE.MeshBasicMaterial());
 let outerPositionAttribute = outerSphere.geometry.attributes.position;
 
 for(let i = 0; i < outerPositionAttribute.count; i++){
@@ -156,7 +151,7 @@ for(let i = 0; i < outerPositionAttribute.count; i++){
 
      let pivot = new THREE.Group();
      pivot.position.copy(globalPos);
-     let dot = new Dot(pivot);
+     let dot = new Dot(10,pivot);
      dot.mesh.material = new THREE.MeshBasicMaterial({color:0xf9a66c});
      outerSphereDots.push(dot);
 
@@ -167,63 +162,16 @@ for(let i = 0; i < outerPositionAttribute.count; i++){
 
 scene.add(outerSpherePivots);
 
-let innerSphereDots = [];
-let innerSpherePivots = new THREE.Group();
-
-var innerSphere = new THREE.Mesh(new THREE.SphereGeometry(9,64,64), new THREE.MeshBasicMaterial());
-let positionAttribute = innerSphere.geometry.attributes.position;
-
-for(let i = 0; i < positionAttribute.count; i++){
-     const vertex = new THREE.Vector3();
-     vertex.fromBufferAttribute(positionAttribute, i);
-     const globalPos = vertex.clone().applyMatrix4(innerSphere.matrixWorld);
-
-     let pivot = new THREE.Group();
-     pivot.position.copy(globalPos);
-     let dot = new Dot(pivot);
-     dot.mesh.material = new THREE.MeshBasicMaterial({color:0xd83f87});
-     innerSphereDots.push(dot);
-
-     pivot.add(dot.mesh);
-     dot.mesh.position.copy(new THREE.Vector3());
-     innerSpherePivots.add(pivot); 
-}
-
-
-// scene.add(innerSpherePivots);
-
-// let cube = new THREE.Mesh(new THREE.BoxGeometry(1,1,1,20,20, 20), new THREE.MeshBasicMaterial({wireframe: true}));
-// scene.add(cube);
-
-
 camera.position.z = 35;
 
-
-
-
-
-// let cube = new THREE.Mesh(new THREE.BoxGeometry(3,3,3));
-// scene.add(cube);
-
 function animate() {
-     // outerSpherePivots.rotation.x += 0.01;
-     // outerSpherePivots.rotation.y += 0.01;
-     // outerSpherePivots.rotation.z += 0.01;
+
      for(let i = 0; i < outerSphereDots.length; i++){
           outerSphereDots[i].avoidMouse(mousePos);
           outerSphereDots[i].controlMovement();
 
      }
 
-     // innerSpherePivots.rotation.x -= 0.01;
-     // innerSpherePivots.rotation.y -= 0.01;
-     // for(let i = 0; i < innerSphereDots.length; i++){
-     //      innerSphereDots[i].avoidMouse(mousePos);
-     //      innerSphereDots[i].controlMovement();
-
-     // }
-
-     // if (mixer) mixer.update(0.2);
 
      composer.render();
      // renderer.render( scene, camera ); 
