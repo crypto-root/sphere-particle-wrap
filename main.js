@@ -82,7 +82,7 @@ class Dot{
 const scene = new THREE.Scene(); 
 const renderer = new THREE.WebGLRenderer(); 
 
-var mousePos = new THREE.Vector2();
+var cursorPos = new THREE.Vector2();
 
 
 
@@ -111,16 +111,32 @@ function onDocumentMouseMove(event){
      
      event.preventDefault();
 
-     mousePos.x = (event.clientX / window.innerWidth) * 2 - 1;
-     mousePos.y = - (event.clientY / window.innerHeight) * 2 + 1;
+     cursorPos.x = (event.clientX / window.innerWidth) * 2 - 1;
+     cursorPos.y = - (event.clientY / window.innerHeight) * 2 + 1;
 
-     var vector = new THREE.Vector3(mousePos.x, mousePos.y, 0.5);
+     var vector = new THREE.Vector3(cursorPos.x, cursorPos.y, 0.5);
      vector.unproject( camera );
      var dir = vector.sub( camera.position ).normalize();
      var distance = - camera.position.z / dir.z;
-     mousePos = camera.position.clone().add( dir.multiplyScalar( distance ) );
-     // console.log("x" + mousePos.x);
-     // console.log("y" + mousePos.y);
+     cursorPos = camera.position.clone().add( dir.multiplyScalar( distance ) );
+
+}
+
+document.addEventListener("touchmove", onDocumentTouchMove, false);
+function onDocumentTouchMove(event){
+     
+     event.preventDefault();
+
+
+
+     cursorPos.x = (event.touches[0].clientX    / window.innerWidth) * 2 - 1;
+     cursorPos.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+
+     var vector = new THREE.Vector3(cursorPos.x, cursorPos.y, 0.5);
+     vector.unproject( camera );
+     var dir = vector.sub( camera.position ).normalize();
+     var distance = - camera.position.z / dir.z;
+     cursorPos = camera.position.clone().add( dir.multiplyScalar( distance ) );
 
 }
 
@@ -167,7 +183,7 @@ camera.position.z = 35;
 function animate() {
 
      for(let i = 0; i < outerSphereDots.length; i++){
-          outerSphereDots[i].avoidMouse(mousePos);
+          outerSphereDots[i].avoidMouse(cursorPos);
           outerSphereDots[i].controlMovement();
 
      }
