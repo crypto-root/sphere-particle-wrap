@@ -4,21 +4,34 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'; 
 import GUI from 'lil-gui';
 
+let outerSphereDots = [];
+let outerSpherePivots = new THREE.Group();
+
 let gui = new GUI();
 let settings = {
      distanceAffection : 16.0,
-     avoidanceDistance: 30.0,
+     avoidanceFactor: 30.0,
+     avoidRelativeToPivot: true,
+     countZAxisDirection: true,
+     toggleRotation: true,
 }
 
 gui.add(settings, 'distanceAffection', 4.0,16.0,1.0);
-gui.add(settings, 'avoidanceDistance', -30.0,30.0,1.0);
+gui.add(settings, 'avoidanceFactor', -30.0,30.0,1.0);
+gui.add(settings, 'avoidRelativeToPivot');
+gui.add(settings, 'countZAxisDirection');
+gui.add(settings, 'toggleRotation').onChange((val) => {
+     if(val == false){
+          outerSpherePivots.rotation.set(0,0,0);
+     }
+});
 
 class Dot{
      constructor(radius,pivot){
 
           let dotMaterial = new THREE.MeshBasicMaterial({color: 0xffffff});
 
-          this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.1,0.1), dotMaterial);
+          this.mesh = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,1.0), dotMaterial);
           this.pivot = pivot;
           this.isAvoiding = false;
           this.lerpFactor = 0.0;
@@ -36,16 +49,34 @@ class Dot{
           let pivotGlobalPos = new THREE.Vector3();
           this.mesh.getWorldPosition(dotGlobalPos);
           this.pivot.getWorldPosition(pivotGlobalPos);
-          pivotGlobalPos.setZ(0);
-          let distance = pivotGlobalPos.distanceTo(mousePos);
+
+          if(!settings.countZAxisDirection){
+               pivotGlobalPos.setZ(0);
+          }
+
+          let distance;
+          if(settings.avoidRelativeToPivot){
+               distance = pivotGlobalPos.distanceTo(mousePos);
+          }
+          else{
+               distance = dotGlobalPos.distanceTo(mousePos);
+          }
           
           if(distance < settings.distanceAffection){
 
-               let dir = new THREE.Vector3(pivotGlobalPos.x-mousePos.x, pivotGlobalPos.y-mousePos.y);
+               let dir = new THREE.Vector3();
+               
+               if(settings.avoidRelativeToPivot){
+                    dir = new THREE.Vector3(pivotGlobalPos.x-mousePos.x, pivotGlobalPos.y-mousePos.y, pivotGlobalPos.z);
+               }
+               else{
+                    dir = new THREE.Vector3(dotGlobalPos.x-mousePos.x, dotGlobalPos.y-mousePos.y, dotGlobalPos.z);
+               }
+
                dir.normalize();
 
-               this.targetPos.x = dir.x * (settings.avoidanceDistance - this.radius);
-               this.targetPos.y = dir.y * (settings.avoidanceDistance - this.radius);
+               this.targetPos.x = dir.x * (settings.avoidanceFactor - this.radius);
+               this.targetPos.y = dir.y * (settings.avoidanceFactor - this.radius);
 
                if(!this.isAvoiding){
                     this.lerpFactor = 0.0;
@@ -127,8 +158,6 @@ function onDocumentTouchMove(event){
      
      event.preventDefault();
 
-
-
      cursorPos.x = (event.touches[0].clientX    / window.innerWidth) * 2 - 1;
      cursorPos.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
 
@@ -154,10 +183,7 @@ function onWindowResize() {
 }
 
 
-let outerSphereDots = [];
-let outerSpherePivots = new THREE.Group();
-
-var outerSphere = new THREE.Mesh(new THREE.SphereGeometry(8,64,64), new THREE.MeshBasicMaterial());
+var outerSphere = new THREE.Mesh(new THREE.SphereGeometry(8,32,32), new THREE.MeshBasicMaterial());
 let outerPositionAttribute = outerSphere.geometry.attributes.position;
 
 for(let i = 0; i < outerPositionAttribute.count; i++){
@@ -182,6 +208,11 @@ camera.position.z = 35;
 
 function animate() {
 
+     if(settings.toggleRotation){
+          outerSpherePivots.rotation.x += 0.01;
+          outerSpherePivots.rotation.y += 0.01;
+          outerSpherePivots.rotation.z += 0.01;
+     }
      for(let i = 0; i < outerSphereDots.length; i++){
           outerSphereDots[i].avoidMouse(cursorPos);
           outerSphereDots[i].controlMovement();
