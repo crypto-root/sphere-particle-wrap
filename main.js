@@ -10,10 +10,10 @@ let outerSpherePivots = new THREE.Group();
 let gui = new GUI();
 let settings = {
      distanceAffection : 16.0,
-     avoidanceFactor: 30.0,
+     avoidanceFactor: -30.0,
      avoidRelativeToPivot: true,
-     countZAxisDirection: true,
-     toggleRotation: true,
+     countZAxisDirection: false,
+     toggleRotation: false,
 }
 
 gui.add(settings, 'distanceAffection', 4.0,16.0,1.0);
@@ -116,8 +116,6 @@ const renderer = new THREE.WebGLRenderer();
 var cursorPos = new THREE.Vector2();
 
 
-
-
 renderer.setSize( window.innerWidth, window.innerHeight ); 
 
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 ); 
@@ -204,7 +202,7 @@ for(let i = 0; i < outerPositionAttribute.count; i++){
 
 scene.add(outerSpherePivots);
 
-camera.position.z = 35;
+camera.position.z = 55;
 
 function animate() {
 
